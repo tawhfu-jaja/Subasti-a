@@ -419,7 +419,7 @@ const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : r.gm === 'xi' ? MONEY_XI : r
 // Bolsa de nombres de la subasta actual (en «amar tema» depende del puesto)
 const isFree = r => r.gm === 'sim' && !r.career && !!r.free; // Modo libre (solo Simulaciones sin Carrera): cada jugador arma su liga eligiendo a sus 8 freestylers
 const fPool = r => { const p = r.fset === 'elite' ? POOL.e : r.fset === 'frik' ? POOL.k : POOL.f, rt = r.sim && r.sim.retired; return rt && rt.length ? p.filter(x => !rt.includes(key(x))) : p; }; // bolsa de esta partida: Freestylers TWB o élite; en Simulaciones también Frikirappers ('frik', sin país)
-const poolOf = r => r.mode === 'f' ? fPool(r) : POOL[r.mode];
+const poolOf = r => r.mode === 'f' || (r.mode === 'k' && r.gm === 'sim') ? fPool(r) : POOL[r.mode];
 // Kodigo puede estar en cualquier liga menos en la argentina
 const noKodigo = (lg, n) => lg.name === 'FMS Argentina' && key(n) === 'kodigo';
 // Élite: cada liga solo recibe freestylers de su país (según el país entre paréntesis del nombre); Caribe: cualquiera
@@ -1947,7 +1947,8 @@ io.on('connection', s => {
     if (r.phase === 'lobby' && ['easy', 'normal', 'hard'].includes(d.mdif)) r.mdif = d.mdif; // dificultad del Modo Manager (presupuesto)
     if (r.phase === 'lobby' && typeof d.career === 'boolean') r.career = d.career && r.players.length <= CAREER_MAX_PLAYERS; // Modo Carrera (solo con Simulaciones)
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
-    if ((r.gm === 'versus' || r.gm === 'sim') && r.mode !== 'f') r.gm = 'std'; // versus y simulaciones solo existen con Freestylers
+    if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std'; // versus solo existe con Freestylers
+    if (r.gm === 'sim' && r.mode !== 'f' && r.mode !== 'k') r.gm = 'std'; // simulaciones existen con Freestylers y con Frikirappers
     if (r.mode === 'b') { if (r.gm !== 'xi' && r.gm !== 'best') r.gm = 'xi'; } // Blue Lock: «armar 11» o «armar el mejor»
     else if (r.gm === 'xi') r.gm = 'std';
     if (r.phase === 'lobby') r.players.forEach(p => p.money = moneyOf(r));
@@ -1957,10 +1958,11 @@ io.on('connection', s => {
   s.on('start', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < (r.gm === 'sim' ? 1 : 2)) return;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
-    if ((r.gm === 'versus' || r.gm === 'sim') && r.mode !== 'f') r.gm = 'std';
+    if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std';
+    if (r.gm === 'sim' && r.mode !== 'f' && r.mode !== 'k') r.gm = 'std';
     { // ruleta: ¿freestylers de TWB o élite? (solo con Freestylers, en cualquier modo de partida)
       const prev = r.fset;
-      r.fset = r.mode === 'f' ? (r.gm === 'sim' && ['twb', 'elite', 'frik'].includes(r.fsel) ? r.fsel : r.gm === 'sim' ? ['twb', 'elite', 'frik'][Math.floor(Math.random() * 3)] : (Math.random() < 0.5 ? 'twb' : 'elite')) : null; // en Simulaciones se puede fijar TWB, élite o frikirappers; si es aleatorio, ruleta de 3
+      r.fset = r.gm === 'sim' && r.mode === 'k' ? 'frik' : r.mode === 'f' ? (r.gm === 'sim' && ['twb', 'elite', 'frik'].includes(r.fsel) ? r.fsel : r.gm === 'sim' ? ['twb', 'elite', 'frik'][Math.floor(Math.random() * 3)] : (Math.random() < 0.5 ? 'twb' : 'elite')) : null; // en Simulaciones se puede fijar TWB, élite o frikirappers; si es aleatorio, ruleta de 3
       r.fsetId = Date.now();
       if (prev !== r.fset) r.used.clear();
     }
