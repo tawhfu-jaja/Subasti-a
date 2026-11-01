@@ -208,8 +208,8 @@ button.vbtn{display:block;width:100%;margin:8px 0}
       <label for="dif">Dificultad</label>
       <select id="dif"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
       </div>
-      <div id="fselBox" class="hide"><label for="fsel">Freestylers que salen (Simulaciones)</label>
-      <select id="fsel"><option value="rand">Aleatorio: una ruleta decide entre TWB y élite</option><option value="twb">TWB</option><option value="elite">⭐ Élite</option></select></div>
+      <div id="fselBox" class="hide"><label for="fsel">Participantes que salen (Simulaciones)</label>
+      <select id="fsel"><option value="rand">Aleatorio: una ruleta decide entre TWB, élite y frikirappers</option><option value="twb">Freestylers TWB</option><option value="elite">⭐ Freestylers élite</option><option value="frik">🎤 Frikirappers</option></select></div>
       <div id="freeBox" class="hide"><label for="free">Reparto de freestylers (Simulaciones)</label>
       <select id="free"><option value="0">Sorteo: cada liga recibe 8 freestylers al azar</option><option value="1">Modo libre: cada jugador arma su liga eligiendo a sus 8 participantes (solo del país de la liga; Caribe: cualquiera), con la lista que elijas arriba</option></select></div>
       <div id="mgrBox" class="hide">
@@ -490,16 +490,16 @@ let fsetSeen=0,fsetTm=0;
 function showFset(res){ // ruleta que decide si salen freestylers de TWB o élite
   let d=document.getElementById('fsetBox');
   if(!d){d=document.createElement('div');d.id='fsetBox';d.style.cssText='position:fixed;inset:0;z-index:50;background:#000b;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:400 clamp(2rem,10vw,4rem)/1.1 "Twemoji Country Flags","Bowlby One",Impact,sans-serif;color:#FFD23F';document.body.appendChild(d)}
-  const opts=['TWB','ÉLITE'],t0=performance.now(),SPIN=2800;let i=0;
+  const opts=S.gm==='sim'?['TWB','ÉLITE','FRIKIRAPPERS']:['TWB','ÉLITE'],t0=performance.now(),SPIN=2800;let i=0;
   clearInterval(fsetTm);
   fsetTm=setInterval(()=>{
     const e=performance.now()-t0;
-    if(e<SPIN){d.innerHTML='<small style="font-size:1.1rem;color:#F7F0E3">🎰 ¿Qué freestylers salen?</small><div>'+opts[i++%2]+'</div>';}
-    else{clearInterval(fsetTm);d.innerHTML='<small style="font-size:1.1rem;color:#F7F0E3">🎰 ¡Salen los freestylers de…!</small><div class="pop">'+(res==='elite'?'⭐ ÉLITE':'TWB')+'</div>';setTimeout(()=>{if(d.parentNode)d.remove()},1800)}
+    if(e<SPIN){d.innerHTML='<small style="font-size:1.1rem;color:#F7F0E3">🎰 ¿Quiénes salen?</small><div>'+opts[i++%opts.length]+'</div>';}
+    else{clearInterval(fsetTm);d.innerHTML='<small style="font-size:1.1rem;color:#F7F0E3">🎰 ¡Salen…!</small><div class="pop">'+(res==='elite'?'⭐ ÉLITE':res==='frik'?'🎤 FRIKIRAPPERS':'TWB')+'</div>';setTimeout(()=>{if(d.parentNode)d.remove()},1800)}
   },110);
 }
 socket.on('state',s=>{S=s;endAt=performance.now()+s.ms;
-  if(S.fsetId&&S.fsetId!==fsetSeen&&S.fset&&(S.phase==='idle'||(S.phase==='sim'&&S.sim&&S.sim.step===(S.free?'fmt':'draw')))){fsetSeen=S.fsetId;if(S.gm==='sim'&&S.fsel&&S.fsel!=='rand'){}else showFset(S.fset)}
+  if(S.fsetId&&S.fsetId!==fsetSeen&&S.fset&&(S.phase==='idle'||(S.phase==='sim'&&S.sim&&S.sim.step===(S.free?'fmt':'draw')))){fsetSeen=S.fsetId;if(S.gm==='sim'&&(S.mode==='k'||(S.fsel&&S.fsel!=='rand'))){}else showFset(S.fset)}
   render()});
 const me=()=>S.players.find(p=>p.id===myId);
 const nameOf=id=>{const p=S.players.find(x=>x.id===id);return p?p.name:'?'};
@@ -531,9 +531,9 @@ function render(){
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
     $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
-    $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f';
+    $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f'&&S.mode!=='k';
     $('juryBox').classList.toggle('hide',S.gm!=='sim'||(!!S.career&&S.players.length!==2));setVal($('jury'),S.jury);
-    $('aucDifBox').classList.toggle('hide',S.gm==='sim'&&!!S.career);$('mgrBox').classList.toggle('hide',!(S.gm==='sim'&&S.career));setVal($('mgr'),S.mgr?'1':'0');setVal($('mdif'),S.mdif||'normal');$('fselBox').classList.toggle('hide',S.gm!=='sim');setVal($('fsel'),S.fsel||'rand');$('freeBox').classList.toggle('hide',!(S.gm==='sim'&&!S.career));setVal($('free'),S.free?'1':'0');$('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
+    $('aucDifBox').classList.toggle('hide',S.gm==='sim'&&!!S.career);$('mgrBox').classList.toggle('hide',!(S.gm==='sim'&&S.career));setVal($('mgr'),S.mgr?'1':'0');setVal($('mdif'),S.mdif||'normal');$('fselBox').classList.toggle('hide',S.gm!=='sim'||S.mode==='k');setVal($('fsel'),S.fsel||'rand');$('freeBox').classList.toggle('hide',!(S.gm==='sim'&&!S.career));setVal($('free'),S.free?'1':'0');$('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
     $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;$('jury').querySelector('option[value="1"]').disabled=S.players.length!==2;
     $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>7):S.players.length<2;
     return;
@@ -1032,7 +1032,7 @@ function renderSim(m,host){
     h+=simMktHTML(V,host);
   }else if(V.step==='fpick'&&V.fp){
     const F=V.fp,li=mine,done=li>=0&&F.done.includes(li),mp=li>=0?F.picks[li]:[];
-    h+='<h2>🛠️ Modo libre · arma tu liga</h2><p><small>Elige a los 8 freestylers de tu liga (todos contra todos): solo salen los del país de tu liga'+(li>=0&&!V.fp.cc[li]?' (la FMS Caribe admite cualquiera)':li>=0&&V.fp.relax[li]?' (ya no quedan 8 de tu país en esta lista, así que se admiten de otros países)':'')+'. Lista de '+(S.fset==='elite'?'⭐ élite':'TWB')+'. Cada freestyler solo puede estar en una liga: si otro jugador lo ficha antes, ya no estará disponible. Todos empiezan con '+V.cacheStart+'$ de caché. En esta primera temporada no hay cancelación de contratos ni draft.</small></p>';
+    h+='<h2>🛠️ Modo libre · arma tu liga</h2><p><small>Elige a los 8 freestylers de tu liga (todos contra todos): '+(S.fset==='frik'?'los frikirappers no tienen país, así que puedes elegir cualquiera':'solo salen los del país de tu liga'+(li>=0&&!V.fp.cc[li]?' (la FMS Caribe admite cualquiera)':li>=0&&V.fp.relax[li]?' (ya no quedan 8 de tu país en esta lista, así que se admiten de otros países)':''))+'. Lista de '+(S.fset==='elite'?'⭐ freestylers élite':S.fset==='frik'?'🎤 frikirappers':'freestylers TWB')+'. Cada freestyler solo puede estar en una liga: si otro jugador lo ficha antes, ya no estará disponible. Todos empiezan con '+V.cacheStart+'$ de caché. En esta primera temporada no hay cancelación de contratos ni draft.</small></p>';
     h+='<div class="box">'+V.leagues.map((l,i)=>lgTh(l.name).f+' '+esc(l.ownerName)+(l.owner===myId?' (tú)':'')+' · '+esc(l.name.replace('FMS ',''))+' — <b>'+F.picks[i].length+'/'+F.max+'</b>'+(F.done.includes(i)?' ✅':'')).join('<br>')+'</div>';
     if(li<0)h+='<p><small>No llevas ninguna liga: serás jurado. Espera a que los demás terminen…</small></p>';
     else if(done){
