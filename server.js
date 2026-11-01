@@ -239,7 +239,7 @@ const BLUE_NAMES = [
 ];
 // Freestylers «élite» (alternativa a los de TWB: al empezar una partida de Freestylers una ruleta decide cuál de las dos bolsas se usa)
 // El país de cada freestyler va como bandera junto al nombre (la lista original usa el código entre paréntesis)
-const CC_FLAG = { ARG: 'AR', MEX: 'MX', GU: 'GT' }; // etiquetas que no son el código ISO del país
+const CC_FLAG = { ARG: 'AR', MEX: 'MX', GU: 'GT', RD: 'DO', BL: 'BO' }; // etiquetas que no son el código ISO del país
 const flagOf = c => String.fromCodePoint(...[...(CC_FLAG[c] || c)].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
 const flagify = n => n.replace(/\s*(\([A-Z]+\)\s*)+$/, m => ' ' + (m.match(/\(([A-Z]+)\)/g) || []).map(x => flagOf(x.slice(1, -1))).join(''));
 const ELITE_RAW = [
@@ -409,7 +409,7 @@ const ELITE_RAW = [
 ];
 const ELITE_NAMES = ELITE_RAW.map(flagify);
 const POOL = { e: dedupe(ELITE_NAMES), f: dedupe(NAMES.f.map(flagify)), // los de TWB también llevan su país entre paréntesis en names.js: se muestra como bandera
-   k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
+   k: dedupe(NAMES.k.map(flagify)), b: dedupe(BLUE_NAMES) };
 // Listas del modo «amar tema» (van aquí para que server.js funcione aunque names.js sea una versión antigua)
 const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokkyzach', 'Proii', 'Akinno', 'Byaki', 'Natzhu', 'Elevenn'];
 const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
