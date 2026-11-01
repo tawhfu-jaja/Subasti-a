@@ -499,7 +499,7 @@ function showFset(res){ // ruleta que decide si salen freestylers de TWB o élit
   },110);
 }
 socket.on('state',s=>{S=s;endAt=performance.now()+s.ms;
-  if(S.fsetId&&S.fsetId!==fsetSeen&&S.fset&&(S.phase==='idle'||(S.phase==='sim'&&S.sim&&S.sim.step===(S.free?'fmt':'draw')))){fsetSeen=S.fsetId;if(S.gm==='sim'&&S.fsel&&S.fsel!=='rand'){}else showFset(S.fset)}
+  if(S.fsetId&&S.fsetId!==fsetSeen&&S.fset&&(S.phase==='idle'||(S.phase==='sim'&&S.sim&&S.sim.step===(S.free?'fmt':'draw')))){fsetSeen=S.fsetId;if(S.gm==='sim'&&(S.mode==='k'||(S.fsel&&S.fsel!=='rand'))){}else showFset(S.fset)}
   render()});
 const me=()=>S.players.find(p=>p.id===myId);
 const nameOf=id=>{const p=S.players.find(x=>x.id===id);return p?p.name:'?'};
@@ -531,9 +531,9 @@ function render(){
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
     $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
-    $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f';
+    $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f'&&S.mode!=='k';
     $('juryBox').classList.toggle('hide',S.gm!=='sim'||(!!S.career&&S.players.length!==2));setVal($('jury'),S.jury);
-    $('aucDifBox').classList.toggle('hide',S.gm==='sim'&&!!S.career);$('mgrBox').classList.toggle('hide',!(S.gm==='sim'&&S.career));setVal($('mgr'),S.mgr?'1':'0');setVal($('mdif'),S.mdif||'normal');$('fselBox').classList.toggle('hide',S.gm!=='sim');setVal($('fsel'),S.fsel||'rand');$('freeBox').classList.toggle('hide',!(S.gm==='sim'&&!S.career));setVal($('free'),S.free?'1':'0');$('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
+    $('aucDifBox').classList.toggle('hide',S.gm==='sim'&&!!S.career);$('mgrBox').classList.toggle('hide',!(S.gm==='sim'&&S.career));setVal($('mgr'),S.mgr?'1':'0');setVal($('mdif'),S.mdif||'normal');$('fselBox').classList.toggle('hide',S.gm!=='sim'||S.mode==='k');setVal($('fsel'),S.fsel||'rand');$('freeBox').classList.toggle('hide',!(S.gm==='sim'&&!S.career));setVal($('free'),S.free?'1':'0');$('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
     $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;$('jury').querySelector('option[value="1"]').disabled=S.players.length!==2;
     $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>7):S.players.length<2;
     return;
