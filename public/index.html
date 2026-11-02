@@ -211,7 +211,7 @@ button.vbtn{display:block;width:100%;margin:8px 0}
       <div id="fselBox" class="hide"><label for="fsel">Participantes que salen (Simulaciones)</label>
       <select id="fsel"><option value="rand">Aleatorio: una ruleta decide entre TWB, élite y frikirappers</option><option value="twb">Freestylers TWB</option><option value="elite">⭐ Freestylers élite</option><option value="frik">🎤 Frikirappers</option></select></div>
       <div id="freeBox" class="hide"><label for="free">Reparto de freestylers (Simulaciones)</label>
-      <select id="free"><option value="0">Sorteo: cada liga recibe 8 freestylers al azar</option><option value="1">Modo libre: cada jugador arma su liga eligiendo a sus 8 participantes (solo del país de la liga; Caribe: cualquiera), con la lista que elijas arriba</option></select></div>
+      <select id="free"><option value="0">Sorteo: cada liga recibe 8 freestylers al azar</option><option value="1">Modo libre: cada jugador arma su liga eligiendo a sus 8 participantes (solo del país de la liga; Tricolor: Colombia, Ecuador y Venezuela; Caribe: países sin liga), con la lista que elijas arriba</option></select></div>
       <div id="mgrBox" class="hide">
       <label for="mgr">Tipo de carrera</label>
       <select id="mgr"><option value="0">Clásico: cada liga recibe 8 freestylers sorteados</option><option value="1">Manager: mercado de 20 freestylers y caché por liga</option></select>
@@ -660,7 +660,8 @@ const LG_THEME={ // colores de cada liga (c1 principal, c2 secundario, t = color
   'FMS México':{f:'🇲🇽',c1:'#006847',c2:'#CE1126',t:'#fff'},
   'FMS Chile':{f:'🇨🇱',c1:'#D52B1E',c2:'#0039A6',t:'#fff'},
   'FMS Perú':{f:'🇵🇪',c1:'#D91023',c2:'#F7F0E3',t:'#fff'},
-  'FMS Colombia':{f:'🇨🇴',c1:'#FCD116',c2:'#003893',t:'#111'},
+  'FMS Tricolor':{f:'🟡🔵🔴',c1:'#FCD116',c2:'#003893',t:'#111'},
+  'FMS Colombia':{f:'🟡🔵🔴',c1:'#FCD116',c2:'#003893',t:'#111'}, // nombre antiguo (partidas guardadas)
   'FMS Caribe':{f:'🌴',c1:'#00B4D8',c2:'#FF7F11',t:'#111'}
 };
 const lgTh=n=>LG_THEME[n]||{f:'🎤',c1:'#FFD23F',c2:'#F7F0E3',t:'#111'};
@@ -953,12 +954,14 @@ function simKoPickHTML(V,host){ // octavos: sale un clasificado y el representan
   return h;
 }
 const fpTags=n=>(String(n).match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu)||[]).map(f=>[...f].map(ch=>String.fromCharCode(ch.codePointAt(0)-0x1F1E6+65)).join(''));
+const CCN={ES:'España',AR:'Argentina',MX:'México',CL:'Chile',PE:'Perú',CO:'Colombia',EC:'Ecuador',VE:'Venezuela'};
 function fpListHTML(V){ // lista de freestylers del modo libre: libres (se pueden fichar), míos y ya fichados por otra liga
   const F=V.fp,mine=V.leagues.findIndex(l=>l.owner===myId),mp=mine>=0?F.picks[mine]:[];
   const nz=t=>String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''),q=nz(fpQ).trim();
   const taken=new Map();F.picks.forEach((ps,i)=>ps.forEach(n=>taken.set(n,i)));
-  const cc=mine>=0&&!F.relax[mine]?F.cc[mine]:null;
-  const pool=F.pool.filter(n=>(!cc||fpTags(n).includes(cc))&&(!q||nz(n).includes(q)));
+  const rule=mine>=0&&!F.relax[mine]?F.rule[mine]:null;
+  const okc=n=>{if(!rule)return true;const t=fpTags(n);return rule.allow?t.some(x=>rule.allow.includes(x)):(!t.length||t.some(x=>!rule.deny.includes(x)))};
+  const pool=F.pool.filter(n=>okc(n)&&(!q||nz(n).includes(q)));
   const free=pool.filter(n=>!taken.has(n)),others=pool.filter(n=>taken.has(n)&&taken.get(n)!==mine);
   const full=mp.length>=F.max;
   let h=free.length?free.map(n=>'<button class="sm alt" data-fpick="'+esc(n)+'"'+(full?' disabled':'')+'>'+esc(n)+'</button>').join(''):'<small>Ningún freestyler libre con ese nombre.</small>';
@@ -1020,7 +1023,7 @@ function renderSim(m,host){
   }else if(V.step==='lpick'&&V.lp){
     const L=V.lp,cur=L.idx<L.order.length?L.order[L.idx]:null,mine=cur===myId;
     const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
-    h+='<h2>🏳 Elige tu liga</h2><p><small>'+(V.free?'Cada jugador elige la liga que quiere para sí, por turnos al azar. Después elegiréis a mano a los 8 freestylers de cada una, solo del país de la liga (Caribe: cualquiera).':'Han salido los freestylers de TWB: cada jugador elige la liga que quiere para sí, por turnos al azar.')+'</small></p>';
+    h+='<h2>🏳 Elige tu liga</h2><p><small>'+(V.free?'Cada jugador elige la liga que quiere para sí, por turnos al azar. Después elegiréis a mano a los 8 freestylers de cada una, solo del país de la liga (Tricolor: Colombia, Ecuador y Venezuela; Caribe: países sin liga propia, y también Ecuador y Venezuela).':'Han salido los freestylers de TWB: cada jugador elige la liga que quiere para sí, por turnos al azar.')+'</small></p>';
     h+='<div class="banner'+(mine?' pop':'')+'">Turno de '+esc(nm(cur))+(mine?' (tú)':'')+'</div>';
     h+=L.all.map(n=>{
       const by=Object.keys(L.picks).find(k=>L.picks[k]===n);
@@ -1032,7 +1035,7 @@ function renderSim(m,host){
     h+=simMktHTML(V,host);
   }else if(V.step==='fpick'&&V.fp){
     const F=V.fp,li=mine,done=li>=0&&F.done.includes(li),mp=li>=0?F.picks[li]:[];
-    h+='<h2>🛠️ Modo libre · arma tu liga</h2><p><small>Elige a los 8 freestylers de tu liga (todos contra todos): solo salen los del país de tu liga'+(li>=0&&!V.fp.cc[li]?' (la FMS Caribe admite cualquiera)':li>=0&&V.fp.relax[li]?' (ya no quedan 8 de tu país en esta lista, así que se admiten de otros países)':'')+'. Lista de '+(S.fset==='elite'?'⭐ freestylers élite':S.fset==='frik'?'🎤 frikirappers':'freestylers TWB')+'. Cada freestyler solo puede estar en una liga: si otro jugador lo ficha antes, ya no estará disponible. Todos empiezan con '+V.cacheStart+'$ de caché. En esta primera temporada no hay cancelación de contratos ni draft.</small></p>';
+    h+='<h2>🛠️ Modo libre · arma tu liga</h2><p><small>Elige a los 8 freestylers de tu liga (todos contra todos): '+(li>=0?(V.fp.rule[li].deny?'en la FMS Caribe solo valen participantes de países sin liga propia (y también los de Ecuador y Venezuela)':'solo salen los de '+V.fp.rule[li].allow.map(c=>CCN[c]||c).join(', ').replace(/, ([^,]*)$/,' y $1')):'solo salen los del país de cada liga')+(li>=0&&V.fp.relax[li]?' (ya no quedan 8 así en esta lista, así que se admiten de otros países)':'')+'. Lista de '+(S.fset==='elite'?'⭐ freestylers élite':S.fset==='frik'?'🎤 frikirappers':'freestylers TWB')+'. Cada freestyler solo puede estar en una liga: si otro jugador lo ficha antes, ya no estará disponible. Todos empiezan con '+V.cacheStart+'$ de caché. En esta primera temporada no hay cancelación de contratos ni draft.</small></p>';
     h+='<div class="box">'+V.leagues.map((l,i)=>lgTh(l.name).f+' '+esc(l.ownerName)+(l.owner===myId?' (tú)':'')+' · '+esc(l.name.replace('FMS ',''))+' — <b>'+F.picks[i].length+'/'+F.max+'</b>'+(F.done.includes(i)?' ✅':'')).join('<br>')+'</div>';
     if(li<0)h+='<p><small>No llevas ninguna liga: serás jurado. Espera a que los demás terminen…</small></p>';
     else if(done){
