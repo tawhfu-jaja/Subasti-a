@@ -25,7 +25,7 @@ app.get('/engine.js', (q, res) => {
 // >>> ENGINE START (todo lo de aquí hasta ENGINE END también se ejecuta en el navegador en el modo solo)
 
 // ---- Ajustes del juego (cámbialos aquí) ----
-const SIM_LEAGUES = ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile', 'FMS Perú', 'FMS Colombia', 'FMS Caribe'];
+const SIM_LEAGUES = ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile', 'FMS Perú', 'FMS Tricolor', 'FMS Caribe'];
 const SIM_MAX = SIM_LEAGUES.length; // «Simulaciones»: una liga por jugador (1 a 7 jugadores)
 const SIM_TEAM = 8;      // freestylers por jugador = participantes de su liga (7 jornadas de 4 batallas)
 const CACHE_START = 1000, CACHE_WIN = 300, CACHE_WIN_REP = 150, CACHE_UPSET = 0.25; // caché: base, premio por victoria, premio tras réplica y extra por ganar a alguien con más caché
@@ -59,7 +59,7 @@ const CAREER_LEAGUES = [ // ligas de cada temporada; las que ya existían conser
   ['FMS España', 'FMS Argentina'],
   ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile'], // + FMS Internacional con cortes clasificatorios (como en 2019)
   ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile', 'FMS Perú'], // + FMS Perú; la Internacional pasa a fase de grupos (como en 2021)
-  ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile', 'FMS Perú', 'FMS Colombia'] // + FMS Colombia; la Internacional pasa al playoff + The Last Bullet (como en 2022-23)
+  ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile', 'FMS Perú', 'FMS Tricolor'] // + FMS Tricolor (Colombia, Ecuador y Venezuela); la Internacional pasa al playoff + The Last Bullet (como en 2022-23)
 ];
 const CAREER_SEASONS = CAREER_LEAGUES.length;
 const SIM_BULLET_LEAGUES = 6; // con 6 ligas la internacional clasifica con el sistema de la temporada 2022-23: 4 por liga → playoff (12) → The Last Bullet (6) → The Last Bullet Final (3) → 1 por votación = 16
@@ -423,9 +423,12 @@ const poolOf = r => r.mode === 'f' || (r.mode === 'k' && r.gm === 'sim') ? fPool
 // Kodigo puede estar en cualquier liga menos en la argentina
 const noKodigo = (lg, n) => lg.name === 'FMS Argentina' && key(n) === 'kodigo';
 // Élite: cada liga solo recibe freestylers de su país (según el país entre paréntesis del nombre); Caribe: cualquiera
-const LEAGUE_CC = { 'FMS España': 'ES', 'FMS Argentina': 'AR', 'FMS México': 'MX', 'FMS Chile': 'CL', 'FMS Perú': 'PE', 'FMS Colombia': 'CO', 'FMS Caribe': null };
+const LEAGUE_CC = { 'FMS España': ['ES'], 'FMS Argentina': ['AR'], 'FMS México': ['MX'], 'FMS Chile': ['CL'], 'FMS Perú': ['PE'], 'FMS Tricolor': ['CO', 'EC', 'VE'], 'FMS Caribe': null }; // países de cada liga (Tricolor = Colombia, Ecuador y Venezuela)
+const HOME_CC = ['ES', 'AR', 'MX', 'CL', 'PE', 'CO']; // países con liga propia: Ecuador y Venezuela tampoco están aquí, así que también pueden ir a Caribe
+// Modo libre: ¿puede esta liga tener a este participante por su país? Caribe: solo países sin liga propia (o sin país indicado)
+const lgAllows = (lname, n) => { const t = tagsOf(n), cc = LEAGUE_CC[lname]; return cc ? t.some(x => cc.includes(x)) : !t.length || t.some(x => !HOME_CC.includes(x)); };
 const tagsOf = n => (String(n).match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) || []).map(f => [...f].map(ch => String.fromCharCode(ch.codePointAt(0) - 0x1F1E6 + 65)).join('')); // países (códigos ISO) a partir de las banderas del nombre
-const eligLg = (r, lgName, n) => { if (r.fset !== 'elite') return true; const cc = LEAGUE_CC[lgName]; return !cc || tagsOf(n).includes(cc); };
+const eligLg = (r, lgName, n) => { if (r.fset !== 'elite') return true; const cc = LEAGUE_CC[lgName]; return !cc || tagsOf(n).some(x => cc.includes(x)); };
 const poolFor = r => {
   if (r.gm === 'tema') {
     if (r.curSlot === 'INSTRUMENTAL') return TEMA_INSTR;
@@ -790,7 +793,7 @@ function simMktOrder(r, arr) { // orden al azar; los que ya salieron en una temp
   const seen = r.mktSeen || {}, st = simMktStamp(r);
   return arr.map(x => [Math.random() * (seen[key(x)] < st ? 0.5 : 1), x]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
 }
-const simHome = (lname, x) => { const cc = LEAGUE_CC[lname]; return !!cc && tagsOf(x).includes(cc); }; // ¿es del país de esa liga? (Caribe no tiene país)
+const simHome = (lname, x) => { const cc = LEAGUE_CC[lname]; return !!cc && tagsOf(x).some(t => cc.includes(t)); }; // ¿es del país de esa liga? (Caribe no tiene país)
 function simMarketPool(r, lname, taken, k) { // mini mercado: k freestylers que no estén en ninguna liga, mayoría del país de la liga
   const cc = LEAGUE_CC[lname], free = fPool(r).filter(x => !taken.has(key(x)) && !noKodigo({ name: lname }, x));
   const cand = simMktOrder(r, simCandidates(r, free, k));
@@ -950,9 +953,9 @@ function simLpAuto(r) {
 }
 // ---- Modo libre: cada jugador arma su liga eligiendo a sus 8 freestylers (de todos los que hay; cada uno solo puede estar en una liga) ----
 function simFreeInit(r) { const S = r.sim; S.fp = { picks: S.leagues.map(() => []), done: {} }; S.step = 'fpick'; simFreeAuto(r); }
-const simFreeAvail = (r, li) => { const S = r.sim, cc = LEAGUE_CC[S.leagues[li].name]; return cc ? fPool(r).filter(x => tagsOf(x).includes(cc) && (simFreeTakenBy(S, x) < 0 || S.fp.picks[li].some(y => key(y) === key(x)))).length : Infinity; }; // los del país de la liga que aún se pueden tener (libres o ya míos)
+const simFreeAvail = (r, li) => { const S = r.sim, nm = S.leagues[li].name; return fPool(r).filter(x => lgAllows(nm, x) && (simFreeTakenBy(S, x) < 0 || S.fp.picks[li].some(y => key(y) === key(x)))).length; }; // los del país de la liga que aún se pueden tener (libres o ya míos)
 const simFreeRelax = (r, li) => simFreeAvail(r, li) < SIM_TEAM; // si del país no llegan a 8 (p. ej. Colombia con la lista TWB), se admiten de otros países
-const simFreeOk = (r, li, n) => { const cc = LEAGUE_CC[r.sim.leagues[li].name]; return !cc || tagsOf(n).includes(cc) || simFreeRelax(r, li); }; // Modo libre: cada liga solo admite freestylers de su país (Caribe: cualquiera)
+const simFreeOk = (r, li, n) => lgAllows(r.sim.leagues[li].name, n) || simFreeRelax(r, li); // Modo libre: cada liga solo admite participantes de su país (Tricolor: Colombia, Ecuador y Venezuela; Caribe: países sin liga)
 const simFreeTakenBy = (S, n) => { const k = key(n); return S.fp.picks.findIndex(p => p.some(x => key(x) === k)); };
 function simFreePick(r, li, n) { // añade el freestyler a la liga li, o lo quita si ya estaba
   const S = r.sim, F = S.fp, lg = S.leagues[li]; if (!F || !lg || F.done[li]) return false;
@@ -966,7 +969,7 @@ function simFreePick(r, li, n) { // añade el freestyler a la liga li, o lo quit
 function simFreeFill(r, li) { // rellena al azar los huecos que falten
   const S = r.sim, lg = S.leagues[li], mine = S.fp.picks[li];
   const free = simShuffle(fPool(r)).filter(x => simFreeTakenBy(S, x) < 0 && !noKodigo(lg, x));
-  const home = free.filter(x => !LEAGUE_CC[lg.name] || tagsOf(x).includes(LEAGUE_CC[lg.name])), rest = free.filter(x => !home.includes(x));
+  const home = free.filter(x => lgAllows(lg.name, x)), rest = free.filter(x => !home.includes(x));
   [...home, ...rest].forEach(x => { if (mine.length < SIM_TEAM) mine.push(x); });
 }
 function simFreeAuto(r) { // bots, desconectados y dueños que ya no están: su liga se rellena sola; cuando todas están listas empieza lo siguiente
@@ -1823,7 +1826,7 @@ function simView(r) {
     jp: S.step === 'jpick' && S.jp ? { pid: S.jp.pid, opts: S.jp.opts, seats: S.jp.seats } : null,
     rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX, total: r.players.length } : null,
     mgr: !!S.mgr, free: !!S.free,
-    fp: S.step === 'fpick' && S.fp ? { cc: S.leagues.map(lg => LEAGUE_CC[lg.name] || null), relax: S.leagues.map((_, i) => simFreeRelax(r, i)), picks: S.fp.picks, done: S.leagues.map((_, i) => i).filter(i => S.fp.done[i]), max: SIM_TEAM, pool: fPool(r).slice().sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) } : null,
+    fp: S.step === 'fpick' && S.fp ? { rule: S.leagues.map(lg => LEAGUE_CC[lg.name] ? { allow: LEAGUE_CC[lg.name] } : { deny: HOME_CC }), relax: S.leagues.map((_, i) => simFreeRelax(r, i)), picks: S.fp.picks, done: S.leagues.map((_, i) => i).filter(i => S.fp.done[i]), max: SIM_TEAM, pool: fPool(r).slice().sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0) } : null,
     mkt: S.step === 'mkt' ? S.leagues.map((lg, li) => ({ li, name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, bank: lg.bank, need: lg.mkt ? lg.mkt.need : 0, team: lg.teams.map(n => ({ n, p: simPrice(r, n) })), pool: lg.mkt ? lg.mkt.pool.map(n => ({ n, p: simPrice(r, n), ok: simMktCan(r, lg, n) })).sort((a, b) => b.p - a.p || a.n.localeCompare(b.n)) : [] })) : null,
     career: !!S.career, cSeasons: CAREER_SEASONS, solo: simSolo(r, S), owners: new Set(S.leagues.map(l => l.ownerId)).size, histAll: S.histAll || [], hofNow: S.step === 'end' ? simHofEntry(r) : null,
     cnext: S.career && S.step === 'end' && S.season < CAREER_SEASONS ? { season: S.season + 1, add: CAREER_LEAGUES[S.season].filter(n => !S.leagues.some(l => l.name === n)), intl: S.season + 1 >= CAREER_INTL_SEASON, grp: S.season + 1 >= CAREER_INTL_SEASON && CAREER_LEAGUES[S.season].length === SIM_GROUP_PLAYERS, bullet: CAREER_LEAGUES[S.season].length >= SIM_BULLET_LEAGUES, mini: S.season + 1 < CAREER_INTL_SEASON && CAREER_LEAGUES[S.season].length === 2 } : null,
