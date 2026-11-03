@@ -46,6 +46,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .card.win{border:3px solid var(--y)}
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
+.rav{width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:5px;border:2px solid #FFD23F;background:#2A1B5E}
+.rav.big{width:44px;height:44px}
+.chip.hasav{padding-left:4px}
+.rav.emo{display:inline-flex;align-items:center;justify-content:center;font-size:.9rem;border:2px solid #FFD23F}
 .chip{display:inline-block;background:#5a47a0;border-radius:99px;padding:3px 10px;margin:2px 4px 2px 0;font-size:.9rem}
 .special{margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--r);font-weight:600;font-size:.95rem}
 .chatTog{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:20;margin:0;box-shadow:0 2px 8px #0008}
@@ -210,6 +214,7 @@ button.vbtn{display:block;width:100%;margin:8px 0}
       </div>
       <div id="fselBox" class="hide"><label for="fsel">Participantes que salen (Simulaciones)</label>
       <select id="fsel"><option value="rand">Aleatorio: una ruleta decide entre TWB, élite y frikirappers</option><option value="twb">Freestylers TWB</option><option value="elite">⭐ Freestylers élite</option><option value="frik">🎤 Frikirappers</option></select></div>
+      
       <div id="freeBox" class="hide"><label for="free">Reparto de freestylers (Simulaciones)</label>
       <select id="free"><option value="0">Sorteo: cada liga recibe 8 freestylers al azar</option><option value="1">Modo libre: cada jugador arma su liga eligiendo a sus 8 participantes (solo del país de la liga; Tricolor: Colombia, Ecuador y Venezuela; Caribe: países sin liga), con la lista que elijas arriba</option></select></div>
       <div id="mgrBox" class="hide">
@@ -599,7 +604,7 @@ function render(){
     $('hostBox').classList.toggle('hide',!host);
     if(host){
       setVal($('vol'),S.vol);setVal($('vv'),S.vv);setVal($('dif2'),S.dif);setVal($('auc2'),S.auc);
-      const done=S.players.every(p=>p.roster.length>=S.goal);
+      const done=S.players.every(p=>p.roster.length>=(p.goal||S.goal));
       $('next').textContent=done?'Ir a intercambios':(ph==='idle'?'Lanzar subasta':'Siguiente subasta');
       $('next').disabled=ph==='auction'||ph==='roulette';
       $('rep').textContent=ph==='auction'?'Repetir voz ('+S.plays+'/'+S.maxPlays+')':'Repetir voz';
@@ -614,7 +619,7 @@ function render(){
       const tag=p.eligible?(ph==='auction'&&blind&&S.sealed.includes(p.id)?'🔒 ya ofertó':ph==='auction'&&!blind&&S.bidder===p.id?'🔥 va ganando':'puja'):'✔ fuera';
       return '<div class="pl"><div><b>'+esc(p.name)+'</b>'+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+(p.on?'':' ⚠ sin conexión'+(host?' <button class="sm alt" data-act="kick" data-pid="'+esc(p.id)+'">Sacar</button>':''))+
         '<br><small>'+(p.roster.map(esc).join(' · ')||'—')+'</small></div>'+
-        '<div style="text-align:right">'+p.money+'$<br><small>'+p.roster.length+'/'+S.goal+' · '+tag+'</small></div></div>';
+        '<div style="text-align:right">'+p.money+'$<br><small>'+p.roster.length+'/'+(p.goal||S.goal)+' · '+tag+'</small></div></div>';
     }).join('');
     return;
   }
@@ -1290,11 +1295,19 @@ function roleSfx(p,n){
   if(S.gm==='xi')return k?' ('+xiLbl(p,k)+')':'';
   return k?(S.gm==='versus'?' (vs '+k+')':' ('+k+')'):'';
 }
+const roleSlug=n=>String(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const castRoles=p=>S.gm==='cast'&&p&&p.estr?[...S.theme.roles,'ESTRIBILLO']:S.theme.roles;
+function roleImg(role,big){ // foto del personaje del puesto (modo cast): public/roles/<nombre>.jpg; si no hay foto, una inicial/emoji
+  if(S.gm!=='cast')return '';
+  if(role==='ESTRIBILLO')return '<span class="rav emo'+(big?' big':'')+'">🎤</span>';
+  const sl=roleSlug(role);
+  return '<img class="rav'+(big?' big':'')+'" src="/roles/'+sl+'.jpg" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;rav emo'+(big?' big':'')+'&quot;>'+esc(String(role).charAt(0))+'</span>\'">';
+}
 function rosterHtml(p){
   if(S.gm==='xi'&&S.forms)return pitchHtml(p,true);
   if(S.gm==='versus')return (p.rivals||[]).map(r=>'<span class="chip"><b>'+esc((p.cast||{})[r]||'—')+'</b> VS '+esc(r)+'</span>').join('');
   if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(p.tname||'—')+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
-  if((S.gm==='cast'||S.gm==='best')&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
+  if((S.gm==='cast'||S.gm==='best')&&S.theme)return castRoles(p).map(r=>'<span class="chip'+(S.gm==='cast'?' hasav':'')+'">'+roleImg(r)+'<b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
   return p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('');
 }
 function renderTema(box,m){
@@ -1395,13 +1408,15 @@ function renderCast(){
   box.classList.toggle('hide',!show);
   if(!show||box.contains(document.activeElement))return;
   let h=S.gm==='best'?'<b>Mi equipo · '+m.roster.length+'/'+S.goal+' fichados</b><p><small>Pon a cada personaje en la categoría donde sea el mejor. Los que dejes sin poner se colocan solos al empezar la votación.</small></p>':'<b>Mi cast · '+esc(S.theme.name)+'</b><p><small>Coloca cada personaje que consigas en un puesto. Los que dejes sin poner se colocan solos al empezar la votación.</small></p>';
-  S.theme.roles.forEach(role=>{
+  castRoles(m).forEach(role=>{
     const cur=m.cast[role]||'';
-    h+='<div class="pl"><b>'+esc(role)+'</b><select data-role="'+esc(role)+'" style="width:58%"><option value="">— vacío —</option>'+
+    h+='<div class="pl"><span>'+roleImg(role,true)+'<b>'+esc(role)+'</b></span><select data-role="'+esc(role)+'" style="width:58%"><option value="">— vacío —</option>'+
       m.roster.map(n=>{const w=Object.keys(m.cast).find(k=>m.cast[k]===n&&k!==role);return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+(w?' · en '+esc(w):'')+'</option>'}).join('')+'</select></div>';
   });
+  if(S.gm==='cast'&&['idle','sold'].includes(S.phase)){const can=m.estr?m.roster.length<=S.goalBase:true;h+='<button class="sm alt" id="estrBtn"'+(can?'':' disabled')+'>'+(m.estr?'Quitar 🎤 ESTRIBILLO':'🎤 Añadir ESTRIBILLO (+1 personaje)')+'</button>';}
   box.innerHTML=h;
 }
+$('castBox').addEventListener('click',e=>{if(e.target.id==='estrBtn'){e.target.blur();socket.emit('estr',!(me()&&me().estr));}});
 $('castBox').onclick=xiClick;
 $('castBox').oninput=e=>{
   const i=e.target;if(!i.dataset||!i.dataset.slot)return;
