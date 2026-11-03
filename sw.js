@@ -1,6 +1,6 @@
 // Service worker: la app se guarda en el dispositivo para poder abrirla (y jugar solo contra bots) sin conexión.
-const CACHE = 'subasta-v2';
-const SHELL = ['/', '/index.html', '/engine.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'subasta-v3';
+const SHELL = ['/', '/index.html', '/engine.js', '/roles.js', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));
 });

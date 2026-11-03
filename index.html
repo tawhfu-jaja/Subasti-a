@@ -295,6 +295,7 @@ button.vbtn{display:block;width:100%;margin:8px 0}
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/engine.js"></script>
+<script src="/roles.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1301,7 +1302,7 @@ function roleImg(role,big){ // foto del personaje del puesto (modo cast): public
   if(S.gm!=='cast')return '';
   if(role==='ESTRIBILLO')return '<span class="rav emo'+(big?' big':'')+'">🎤</span>';
   const sl=roleSlug(role);
-  return '<img class="rav'+(big?' big':'')+'" src="/roles/'+sl+'.jpg" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;rav emo'+(big?' big':'')+'&quot;>'+esc(String(role).charAt(0))+'</span>\'">';
+  return '<img class="rav'+(big?' big':'')+'" src="'+((window.ROLE_IMGS&&ROLE_IMGS[sl])||'/roles/'+sl+'.jpg')+'" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;rav emo'+(big?' big':'')+'&quot;>'+esc(String(role).charAt(0))+'</span>\'">';
 }
 function rosterHtml(p){
   if(S.gm==='xi'&&S.forms)return pitchHtml(p,true);
