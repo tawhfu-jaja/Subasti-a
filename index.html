@@ -89,6 +89,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .spin{display:inline-block;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 button.vbtn{display:block;width:100%;margin:8px 0}
+.scoreRow{display:flex;gap:6px}.scoreRow button.vbtn{width:auto;flex:1;margin:8px 0;font-size:1.3em}
 .banner{padding:12px;border-radius:10px;background:var(--y);color:#2A1B5E;font:400 1.1rem 'Twemoji Country Flags','Bowlby One',Impact,sans-serif;margin:10px 0;text-align:center}
 .banner.rep{background:var(--r);color:#fff}
 /* simulaciones: dorado (clasificados), arcoíris (campeones), ruleta */
@@ -477,6 +478,8 @@ function egClick(e){
   else if(d.act==='sendrank')socket.emit('vote',rank);
   else if(d.act==='tovote')socket.emit('voteStart');
   else if(d.act==='vend')socket.emit('voteEnd');
+  else if(d.act==='cscore')socket.emit('cscore',+d.n);
+  else if(d.act==='cnext')socket.emit('cnext');
   else if(d.act==='again'){myVote='';giveChoice='';cashVal='';socket.emit('restart')}
 }
 function egChange(e){
@@ -1493,6 +1496,21 @@ function renderEnd(m,host,ph){
     h+='<h2>Intercambios</h2><p>Elige qué personaje das'+(S.gm==='xi'?' (y dinero si quieres)':'')+' y pulsa uno de otro jugador para proponerle el cambio'+(S.gm==='xi'?'. Para vender uno tuyo por dinero, pon «Yo pido» y pulsa «Vender a…»':' 1×1')+'.</p>';
     h+=giveControls(m)+offersHtml(m);
   }
+  if(ph==='vote'&&S.gm==='cast'&&S.cv){ // se muestra un cast cada vez; los demás lo puntúan del 1 al 5
+    const C=S.cv,t=S.players.find(p=>p.id===C.tid);
+    if(t){
+      const isMe=t.id===myId,done=C.voted.includes(myId);
+      h+='<h2>⭐ Votación · cast '+(C.i+1)+' de '+C.n+'</h2>';
+      if(C.last){const lp=S.players.find(p=>p.id===C.last.id);if(lp)h+='<small>Anterior: '+esc(lp.name)+' sacó <b>'+(Math.round(C.last.avg*100)/100)+'</b> de media</small>';}
+      h+='<div class="card"><b>'+esc(t.name)+'</b>'+(isMe?' (tú)':'')+'<div>'+rosterHtml(t)+'</div></div>';
+      if(isMe)h+='<p><b>Es tu cast.</b> Espera a que los demás te pongan nota…</p>';
+      else if(done)h+='<p><b>Nota enviada ✔.</b> Esperando a los demás…</p>';
+      else h+='<p>¿Qué nota le das a este cast? <small>1 = flojo · 5 = brutal</small></p><div class="scoreRow">'+[1,2,3,4,5].map(n=>'<button class="vbtn" data-act="cscore" data-n="'+n+'">'+n+'</button>').join('')+'</div>';
+      h+='<div>'+S.players.filter(p=>p.id!==t.id).map(p=>'<span class="chip">'+esc(p.name)+(C.voted.includes(p.id)?' ✔':(p.on?' ⏳':' ⚠'))+'</span>').join('')+'</div>';
+      if(host)h+='<div><button class="alt sm" data-act="cnext">Siguiente cast (sin esperar)</button> <button class="alt sm" data-act="vend">Cerrar votación</button></div>';
+    }
+    $('eg').innerHTML=h;return;
+  }
   if(ph==='vote'){
     const others=S.players.filter(p=>p.id!==myId).map(p=>p.id);
     rank=rank.filter(id=>others.includes(id));others.forEach(id=>{if(!rank.includes(id))rank.push(id)});
@@ -1517,7 +1535,7 @@ function renderEnd(m,host,ph){
     const isMe=p.id===myId;
     const win=ph==='end'&&S.results&&S.results.winners.includes(p.id);
     h+='<div class="card'+(win?' win':'')+'"><b>'+(ph==='end'&&S.results?'#'+(1+order.filter(q=>S.results.tally[q.id]>S.results.tally[p.id]).length)+' ':'')+esc(p.name)+'</b>'+(isMe?' (tú)':'')+(p.id===S.hostId?' 👑':'')+(p.on?'':' ⚠ sin conexión'+(host?' <button class="sm alt" data-act="kick" data-pid="'+esc(p.id)+'">Sacar</button>':''))+' · '+p.money+'$';
-    if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' pts</b>';
+    if(ph==='end'&&S.results)h+=S.results.cast?' · <b>⭐ '+S.results.tally[p.id].toFixed(2)+'</b> de media':' · <b>'+S.results.tally[p.id]+' pts</b>';
     if(ph==='vote'&&S.voted.includes(p.id))h+=' · votó ✔';
     h+='<div>';
     if((S.gm==='cast'||S.gm==='best'||S.gm==='tema'||S.gm==='versus'||S.gm==='xi')&&ph!=='trade')h+=rosterHtml(p);
