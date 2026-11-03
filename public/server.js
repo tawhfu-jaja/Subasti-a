@@ -131,8 +131,15 @@ const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
 const MAX_PLAYS = 2;     // veces que se puede oír la voz en cada subasta
 // Temáticas del modo cast (se elige una al azar al empezar). Para añadir otra, copia un bloque.
 const THEMES = [
-  { name: 'NEW GEN BLUE LOCK', roles: ['LOKI', 'DON LORENZO', 'SAE ITOSHI', 'MICHAEL KAISER', 'HUGO VIVIEN', 'TEDDY KNIGHT', 'BUNNY IGLESIAS'] }
+  { name: 'NEW GEN BLUE LOCK', roles: ['LOKI', 'DON LORENZO', 'SAE ITOSHI', 'MICHAEL KAISER', 'HUGO VIVIEN', 'TEDDY KNIGHT', 'BUNNY IGLESIAS'] },
+  { name: 'BASTARD VS BARCHA', roles: ['ISAGI', 'KUNIGAMI', 'KAISER', 'NESS', 'NOEL NOA', 'BACHIRA', 'LAVINHO', 'EGO'] },
+  { name: 'BASTARD VS MANSHINE', roles: ['ISAGI', 'KUNIGAMI', 'KAISER', 'NESS', 'YUKIMIYA', 'KURONA', 'NOEL NOA', 'GAGAMARU', 'NAGI', 'REO', 'AGI', 'CHIGIRI', 'CHRIS PRINCE'] },
+  { name: 'BASTARD MACRORAP', roles: ['ISAGI', 'HIORI', 'KUNIGAMI', 'YUKIMIYA', 'KIYORA', 'GAGAMARU', 'KURONA', 'RAICHI', 'IGAGURI', 'NESS', 'KAISER', 'NOEL NOA'] },
+  { name: 'FNAF 1 MACRORAP', roles: ['FREDDY', 'BONNIE', 'CHICA', 'FOXY', 'GOLDEN FREDDY', 'ENDOESQUELETO'] },
+  { name: 'POPPY PLAYTIME MACRORAP', roles: ['PLAYER', 'HUGGY WUGGY', 'MOMMY LONG LEGS', 'BUNZO BUNNY', 'CATNAP', 'DOGDAY', 'MISS DELIGHT', 'DOCTOR', 'YERNABY', 'DOEY', 'KISSY MISSY', 'GILBET', 'LILY LOVEBRAIDS', 'PROTOTIPO', 'POPPY'] },
+  { name: 'BASTARD VS PXG', roles: ['ITOSHI RIN', 'SHIDOU', 'CHARLES', 'LOKI', 'KARASU', 'NANASE', 'ZANTETSU', 'ISAGI', 'KAISER', 'NESS', 'KUNIGAMI', 'HIORI', 'NOEL NOA', 'RAICHI', 'IGAGURI', 'KURONA', 'KIYORA'] } // las fotos de cada puesto están en public/roles/<nombre>.jpg
 ];
+const ESTRIBILLO = 'ESTRIBILLO'; // categoría opcional del modo cast (cada jugador decide durante la partida si su cast la lleva): un puesto más (y un personaje más a conseguir) solo para ese jugador
 // Temáticas del modo «amar tema» (se elige una al azar al empezar)
 const TEMA_THEMES = ['BLUE LOCK', 'JUJUTSU KAISEN', 'KIMETSU NO YAIBA', 'ANIME ROMCOM', 'CUALQUIER VIDEOJUEGO', 'MACRORAP LIBRE'];
 // En «amar tema» los 3 puestos de PARTICIPANTE son libres: cada jugador escribe a mano qué personaje hace cada uno
@@ -441,7 +448,8 @@ const poolFor = r => {
 const rolesOf = (r, p) => r.gm === 'xi' ? FORMS[p.form || '433']
   : r.gm === 'versus' ? p.rivals
   : (r.gm === 'tema' && r.theme) ? r.theme.slots
-  : ((r.gm === 'cast' || r.gm === 'best') && r.theme) ? r.theme.roles : null;
+  : r.gm === 'cast' && r.theme ? (p.estr ? [...r.theme.roles, ESTRIBILLO] : r.theme.roles)
+  : (r.gm === 'best' && r.theme) ? r.theme.roles : null;
 const specialOf = slot => (slot === 'INSTRUMENTAL' || slot === 'VIDEO') ? '⭐ Ronda especial' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
@@ -452,10 +460,15 @@ const duel = r => r.players.length === 2; // 1 vs 1: no hay rondas, puja cualqui
 const roundIdx = r => duel(r) ? Math.min(Math.floor((r.sales || 0) / 2), 99) : minCount(r); // «ronda» para elegir el puesto en «amar tema»
 const rdOf = r => Math.floor((r.sales || 0) / Math.max(1, r.players.length)) + 1; // ronda según subastas hechas (para el mercado)
 const goalOf = r => r.gm === 'xi' ? XI_SIZE : r.gm === 'tema' ? TEMA_TOTAL : ((r.gm === 'cast' || r.gm === 'best') && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
-const allDone = r => duel(r) ? r.players.every(p => p.roster.length >= goalOf(r)) : minCount(r) >= goalOf(r);
+const goalFor = (r, p) => goalOf(r) + ((r.gm === 'cast' && p.estr) ? 1 : 0); // quien eligió «Estribillo» necesita un personaje más
+const pending = r => r.players.filter(p => p.roster.length < goalFor(r, p));
+const maxGoal = r => Math.max(...r.players.map(p => goalFor(r, p)));
+const allDone = r => pending(r).length === 0;
 const eligible = r => {
-  if (duel(r)) return r.players.filter(p => p.roster.length < goalOf(r)); // da igual que uno tenga 3 y el rival 0
-  const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m);
+  const pd = pending(r);
+  if (duel(r)) return pd; // da igual que uno tenga 3 y el rival 0
+  if (!pd.length) return [];
+  const m = Math.min(...pd.map(p => p.roster.length)); return pd.filter(p => p.roster.length === m);
 };
 
 function newCode() {
@@ -474,8 +487,8 @@ function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
-    gm: r.gm, theme: r.theme, goal: goalOf(r), forms: r.gm === 'xi' ? FORMS : null, market: !!r.market, marketRound: MARKET_ROUND,
-    slot: temaSlot(r), special: specialOf(temaSlot(r)), round: duel(r) ? null : allDone(r) ? goalOf(r) : minCount(r) + 1, duel: duel(r), sales: r.sales || 0, mktAt: (MARKET_ROUND - 1) * r.players.length,
+    gm: r.gm, theme: r.theme, goal: maxGoal(r), goalBase: goalOf(r), forms: r.gm === 'xi' ? FORMS : null, market: !!r.market, marketRound: MARKET_ROUND,
+    slot: temaSlot(r), special: specialOf(temaSlot(r)), round: duel(r) ? null : allDone(r) ? maxGoal(r) : minCount(r) + 1, duel: duel(r), sales: r.sales || 0, mktAt: (MARKET_ROUND - 1) * r.players.length,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
     paused: !!r.paused, bidsOpen: !!r.bidsOpen, plays: r.plays || 0, maxPlays: MAX_PLAYS, openMs: OPEN_MS,
@@ -483,7 +496,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, goal: goalFor(r, p), estr: !!p.estr, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
     offers: r.offers, career: isCareer(r), free: isFree(r), fsel: r.fsel || 'rand', mgr: isMgr(r), mdif: r.mdif || 'normal', fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury === 1 && r.players.length !== 2 ? 3 : (r.jury || 3), sim: r.gm === 'sim' && r.sim ? simView(r) : null,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -615,7 +628,7 @@ function botPlan(r) { // al empezar cada subasta cada bot decide lo máximo que 
   r.players.forEach(b => {
     if (!b.bot) return;
     clearTimeout(b.bt); b.bt = null;
-    const need = Math.max(1, goalOf(r) - b.roster.length);
+    const need = Math.max(1, goalFor(r, b) - b.roster.length);
     const fair = (b.money - (need - 1)) / need; // deja al menos 1$ por cada personaje que le falta
     b.max = Math.max(0, Math.min(b.money, Math.floor(fair * rnd(0.5, 2.2))));
   });
@@ -1986,7 +1999,7 @@ io.on('connection', s => {
     }
     r.curSlot = null; r.market = false; r.sales = 0;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = (p.bot && Math.random() < 0.5) ? '442' : '433'; });
-    if (r.gm === 'tema' || r.gm === 'versus' || poolOf(r).filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
+    if (r.gm === 'tema' || r.gm === 'versus' || poolOf(r).filter(n => !r.used.has(key(n))).length < r.players.reduce((a, p) => a + goalFor(r, p), 0)) r.used.clear();
     if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
       let bag = [...fPool(r)].sort(() => Math.random() - 0.5);
       r.players.forEach(p => {
@@ -2043,6 +2056,16 @@ io.on('connection', s => {
   });
 
   // ---- Cast ----
+  s.on('estr', v => { // cada jugador decide durante la partida (entre subastas) si su cast lleva la categoría «Estribillo»
+    const { r, p } = ctxOf();
+    if (!r || !p || r.gm !== 'cast' || !['idle', 'sold'].includes(r.phase)) return;
+    const on = v === true;
+    if (on === !!p.estr) return;
+    if (!on && p.roster.length > goalOf(r)) return; // ya compró un personaje extra para el estribillo: no puede quitarlo
+    p.estr = on;
+    if (!on) delete p.cast[ESTRIBILLO];
+    push(r);
+  });
   s.on('place', ({ name, role } = {}) => {
     const { r, p } = ctxOf();
     if (!r || !p || ['lobby', 'vote', 'end'].includes(r.phase)) return;
