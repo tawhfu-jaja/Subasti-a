@@ -131,13 +131,15 @@ const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
 const MAX_PLAYS = 2;     // veces que se puede oír la voz en cada subasta
 // Temáticas del modo cast (se elige una al azar al empezar). Para añadir otra, copia un bloque.
 const THEMES = [
-  { name: 'NEW GEN BLUE LOCK', roles: ['LOKI', 'DON LORENZO', 'SAE ITOSHI', 'MICHAEL KAISER', 'HUGO VIVIEN', 'TEDDY KNIGHT', 'BUNNY IGLESIAS'] },
+  { name: 'NEW GEN BLUE LOCK', roles: ['KAISER', 'SAE', 'LOKI', 'BUNNY IGLESIAS', 'DON LORENZO', 'TEDDY KNIGHT', 'HUGO'] },
   { name: 'BASTARD VS BARCHA', roles: ['ISAGI', 'KUNIGAMI', 'KAISER', 'NESS', 'NOEL NOA', 'BACHIRA', 'LAVINHO', 'EGO'] },
   { name: 'BASTARD VS MANSHINE', roles: ['ISAGI', 'KUNIGAMI', 'KAISER', 'NESS', 'YUKIMIYA', 'KURONA', 'NOEL NOA', 'GAGAMARU', 'NAGI', 'REO', 'AGI', 'CHIGIRI', 'CHRIS PRINCE'] },
   { name: 'BASTARD MACRORAP', roles: ['ISAGI', 'HIORI', 'KUNIGAMI', 'YUKIMIYA', 'KIYORA', 'GAGAMARU', 'KURONA', 'RAICHI', 'IGAGURI', 'NESS', 'KAISER', 'NOEL NOA'] },
   { name: 'FNAF 1 MACRORAP', roles: ['FREDDY', 'BONNIE', 'CHICA', 'FOXY', 'GOLDEN FREDDY', 'ENDOESQUELETO'] },
   { name: 'POPPY PLAYTIME MACRORAP', roles: ['PLAYER', 'HUGGY WUGGY', 'MOMMY LONG LEGS', 'BUNZO BUNNY', 'CATNAP', 'DOGDAY', 'MISS DELIGHT', 'DOCTOR', 'YERNABY', 'DOEY', 'KISSY MISSY', 'GILBET', 'LILY LOVEBRAIDS', 'PROTOTIPO', 'POPPY'] },
-  { name: 'BASTARD VS PXG', roles: ['ITOSHI RIN', 'SHIDOU', 'CHARLES', 'LOKI', 'KARASU', 'NANASE', 'ZANTETSU', 'ISAGI', 'KAISER', 'NESS', 'KUNIGAMI', 'HIORI', 'NOEL NOA', 'RAICHI', 'IGAGURI', 'KURONA', 'KIYORA'] } // las fotos de cada puesto están en public/roles/<nombre>.jpg
+  { name: 'BASTARD VS PXG', roles: ['ITOSHI RIN', 'SHIDOU', 'CHARLES', 'LOKI', 'KARASU', 'NANASE', 'ZANTETSU', 'ISAGI', 'KAISER', 'NESS', 'KUNIGAMI', 'HIORI', 'NOEL NOA', 'RAICHI', 'IGAGURI', 'KURONA', 'KIYORA'] },
+  { name: 'INGLATERRA MACRORAP', roles: ['FOX', 'LOCKHART', 'ADAM BLAKE', 'AGI', 'CHRIS PRINCE', 'TEDDY KNIGHT'] },
+  { name: 'SUB 20 MACRORAP | BLUE LOCK', roles: ['RIN', 'ISAGI', 'SHIDOU', 'BAROU', 'BACHIRA', 'CHIGIRI', 'REO', 'KUNIGAMI', 'OTOYA', 'AIKU', 'KARASU', 'GAGAMARU', 'ARYU', 'YUKIMIYA', 'NIKO', 'HIORI', 'SENDOU', 'KURONA', 'ZANTETSU', 'FUKAKU', 'RAICHI', 'KIYORA', 'NANASE'] } // las fotos de cada puesto están en public/roles/<nombre>.jpg
 ];
 const ESTRIBILLO = 'ESTRIBILLO'; // categoría opcional del modo cast (cada jugador decide durante la partida si su cast la lleva): un puesto más (y un personaje más a conseguir) solo para ese jugador
 // Temáticas del modo «amar tema» (se elige una al azar al empezar)
@@ -499,6 +501,7 @@ function view(r) {
     players: r.players.map(p => ({ id: p.id, name: p.name, goal: goalFor(r, p), estr: !!p.estr, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
     offers: r.offers, career: isCareer(r), free: isFree(r), fsel: r.fsel || 'rand', mgr: isMgr(r), mdif: r.mdif || 'normal', fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury === 1 && r.players.length !== 2 ? 3 : (r.jury || 3), sim: r.gm === 'sim' && r.sim ? simView(r) : null,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
+    cv: r.phase === 'vote' && isCastVote(r) && cvTarget(r) ? { i: r.vi, n: r.vorder.length, tid: cvTarget(r), voted: Object.keys(r.sv[cvTarget(r)] || {}), last: r.cvLast || null } : null,
     results: r.results
   };
 }
@@ -590,7 +593,49 @@ function autofill(r) { // los personajes sin puesto se colocan solos en los pues
   });
 }
 
+// ---- Votación del modo cast: se muestra un cast cada vez y el resto lo puntúa del 1 al 5 ----
+const isCastVote = r => r.gm === 'cast' && Array.isArray(r.vorder);
+const cvTarget = r => isCastVote(r) ? r.vorder[r.vi] : null;
+function cvCheck(r) { // pasa al siguiente cast cuando han votado todos los que pueden (menos el dueño)
+  if (r.phase !== 'vote' || !isCastVote(r)) return;
+  const t = cvTarget(r); if (!t) return finishVote(r);
+  const got = r.sv[t] || {};
+  if (r.players.filter(q => q.on && q.id !== t).every(q => q.id in got)) return cvAdvance(r);
+  push(r);
+}
+function cvAdvance(r) {
+  const t = cvTarget(r), got = (t && r.sv[t]) || {}, n = Object.keys(got).length;
+  if (t) r.cvLast = { id: t, avg: n ? Object.values(got).reduce((a, b) => a + b, 0) / n : 0, n };
+  r.vi++;
+  if (r.vi >= r.vorder.length) return finishVote(r);
+  push(r); cvBots(r);
+}
+function cvBots(r) {
+  const t = cvTarget(r), vi = r.vi; if (!t) return;
+  r.players.forEach(b => {
+    if (!b.bot || b.id === t) return;
+    setTimeout(() => {
+      if (r.phase !== 'vote' || r.vi !== vi || !find(r, b.id) || !find(r, t)) return;
+      r.sv[t] = r.sv[t] || {};
+      if (b.id in r.sv[t]) return;
+      r.sv[t][b.id] = 1 + Math.floor(Math.random() * 5);
+      cvCheck(r);
+    }, rnd(1200, 4500));
+  });
+}
 function finishVote(r) {
+  if (isCastVote(r)) {
+    const tally = {}, avg = {};
+    r.players.forEach(p => {
+      const v = Object.values(r.sv[p.id] || {});
+      avg[p.id] = v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 100) / 100 : 0;
+      tally[p.id] = avg[p.id];
+    });
+    const max = Math.max(...Object.values(tally));
+    r.results = { tally, avg, cast: true, winners: max > 0 ? r.players.filter(p => tally[p.id] === max).map(p => p.id) : [] };
+    r.phase = 'end';
+    return push(r);
+  }
   const tally = {};
   r.players.forEach(p => tally[p.id] = 0);
   // cada voto es un ranking de peor a mejor: el peor suma 1 punto, el siguiente 2, etc.
@@ -1879,7 +1924,7 @@ function toLobby(r) {
   r.players = r.players.filter(p => p.on);
   r.theme = null; r.order = null; r.curSlot = null; r.market = false; r.sales = 0; r.sim = null;
   r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = (p.bot && Math.random() < 0.5) ? '442' : '433'; });
-  r.offers = []; r.votes = {}; r.results = null; r.last = null; r.sealed = {}; r.reveal = null; r.bid = 0; r.bidder = null; r.bidsOpen = false; r.paused = false;
+  r.offers = []; r.votes = {}; r.vorder = null; r.sv = {}; r.cvLast = null; r.results = null; r.last = null; r.sealed = {}; r.reveal = null; r.bid = 0; r.bidder = null; r.bidsOpen = false; r.paused = false;
   r.phase = 'lobby';
   push(r);
 }
@@ -1895,7 +1940,13 @@ function removePlayer(r, t) {
   if (r.phase !== 'lobby' && r.players.length < (r.gm === 'sim' ? 1 : 2)) return toLobby(r); // sin rivales no hay partida
   if (r.phase === 'sim' && r.sim) return simPending(r);
   if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
-  if (r.phase === 'vote' && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
+  if (isCastVote(r) && r.sv) {
+    delete r.sv[t.id]; Object.values(r.sv).forEach(o => { delete o[t.id]; });
+    const ix = r.vorder.indexOf(t.id);
+    if (ix >= 0) { r.vorder.splice(ix, 1); if (ix < r.vi) r.vi--; }
+    if (r.phase === 'vote') { if (r.vi >= r.vorder.length) return finishVote(r); cvCheck(r); return cvBots(r); }
+  }
+  if (r.phase === 'vote' && !isCastVote(r) && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
   push(r);
 }
 
@@ -2145,6 +2196,11 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'trade') return;
     autofill(r);
     r.phase = 'vote'; r.votes = {}; r.offers = [];
+    if (r.gm === 'cast') { // un cast cada vez, todos puntúan del 1 al 5
+      r.vorder = r.players.map(p => p.id).sort(() => Math.random() - 0.5); r.vi = 0; r.sv = {}; r.cvLast = null;
+      push(r); return cvBots(r);
+    }
+    r.vorder = null;
     push(r);
     botVotes(r);
   });
@@ -2155,6 +2211,19 @@ io.on('connection', s => {
     r.votes[p.id] = ranking;
     if (r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
     push(r);
+  });
+  s.on('cscore', n => { // nota del 1 al 5 al cast que se está mostrando
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'vote' || !isCastVote(r)) return;
+    const t = cvTarget(r); n = Math.floor(+n);
+    if (!t || t === p.id || !(n >= 1 && n <= 5)) return;
+    r.sv[t] = r.sv[t] || {};
+    if (p.id in r.sv[t]) return;
+    r.sv[t][p.id] = n;
+    cvCheck(r);
+  });
+  s.on('cnext', () => { // el anfitrión pasa al siguiente cast sin esperar a los que faltan
+    const { r } = hostCtx(); if (!r || r.phase !== 'vote' || !isCastVote(r)) return;
+    cvAdvance(r);
   });
   s.on('voteEnd', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'vote') return;
